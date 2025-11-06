@@ -183,6 +183,14 @@ export class GitHubClient {
       }
     }
 
+    // Filter by title query (title only)
+    if (filters.titleQuery) {
+      const titleLower = filters.titleQuery.toLowerCase();
+      if (!issue.title.toLowerCase().includes(titleLower)) {
+        return false;
+      }
+    }
+
     // Filter by created date
     if (filters.createdSince) {
       const createdDate = new Date(issue.createdAt);

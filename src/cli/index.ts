@@ -30,6 +30,7 @@ program
   .option('-a, --assignee <assignees...>', 'Filter by assignees')
   .option('-s, --state <state>', 'Filter by state (open, closed, all)', 'open')
   .option('--search <text>', 'Search text in title or body')
+  .option('--title <text>', 'Search text in title only')
   .option('--created-since <date>', 'Filter issues created since date (ISO 8601 format)')
   .option('--created-until <date>', 'Filter issues created until date (ISO 8601 format)')
   .option('--updated-since <date>', 'Filter issues updated since date (ISO 8601 format)')
@@ -74,6 +75,7 @@ program
           labels: options.label,
           assignees: options.assignee,
           searchText: options.search,
+          titleQuery: options.title,
           createdSince: options.createdSince,
           createdUntil: options.createdUntil,
           updatedSince: options.updatedSince,
@@ -136,6 +138,7 @@ program
   .option('-a, --assignee <assignees...>', 'Filter by assignees')
   .option('-s, --state <state>', 'Filter by state (open, closed, all)', 'open')
   .option('--search <text>', 'Search text in title or body')
+  .option('--title <text>', 'Search text in title only')
   .option('--created-since <date>', 'Filter issues created since date (ISO 8601 format)')
   .option('--created-until <date>', 'Filter issues created until date (ISO 8601 format)')
   .option('--updated-since <date>', 'Filter issues updated since date (ISO 8601 format)')
@@ -172,6 +175,7 @@ program
           labels: options.label,
           assignees: options.assignee,
           searchText: options.search,
+          titleQuery: options.title,
           createdSince: options.createdSince,
           createdUntil: options.createdUntil,
           updatedSince: options.updatedSince,
