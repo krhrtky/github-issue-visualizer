@@ -46,12 +46,25 @@ export interface DependencyGraph {
   };
 }
 
+export interface IssueFilterOptions {
+  state?: 'open' | 'closed' | 'all';
+  labels?: string[];
+  assignees?: string[];
+  searchText?: string;
+  createdSince?: string; // ISO 8601 date string
+  createdUntil?: string; // ISO 8601 date string
+  updatedSince?: string; // ISO 8601 date string
+  updatedUntil?: string; // ISO 8601 date string
+}
+
 export interface VisualizationOptions {
   format: 'mermaid' | 'interactive';
   highlightCriticalPath: boolean;
   filterLabels?: string[];
   filterAssignees?: string[];
   outputPath?: string;
+  // New filter options
+  filters?: IssueFilterOptions;
 }
 
 export interface RepositoryInfo {

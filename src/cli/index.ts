@@ -28,6 +28,12 @@ program
   .option('-o, --output <path>', 'Output file path')
   .option('-l, --label <labels...>', 'Filter by labels')
   .option('-a, --assignee <assignees...>', 'Filter by assignees')
+  .option('-s, --state <state>', 'Filter by state (open, closed, all)', 'open')
+  .option('--search <text>', 'Search text in title or body')
+  .option('--created-since <date>', 'Filter issues created since date (ISO 8601 format)')
+  .option('--created-until <date>', 'Filter issues created until date (ISO 8601 format)')
+  .option('--updated-since <date>', 'Filter issues updated since date (ISO 8601 format)')
+  .option('--updated-until <date>', 'Filter issues updated until date (ISO 8601 format)')
   .option('--no-critical-path', 'Do not highlight critical path')
   .action(async (repository: string, options: any) => {
     try {
@@ -47,6 +53,13 @@ program
         process.exit(1);
       }
 
+      // Validate state
+      const state = options.state?.toLowerCase();
+      if (state && state !== 'open' && state !== 'closed' && state !== 'all') {
+        console.error('Error: State must be either "open", "closed", or "all"');
+        process.exit(1);
+      }
+
       // Create visualizer
       const visualizer = new IssueDependencyVisualizer(token);
 
@@ -56,6 +69,16 @@ program
         filterLabels: options.label,
         filterAssignees: options.assignee,
         highlightCriticalPath: options.criticalPath !== false,
+        filters: {
+          state: state as 'open' | 'closed' | 'all',
+          labels: options.label,
+          assignees: options.assignee,
+          searchText: options.search,
+          createdSince: options.createdSince,
+          createdUntil: options.createdUntil,
+          updatedSince: options.updatedSince,
+          updatedUntil: options.updatedUntil,
+        },
       });
 
       // Generate visualization
@@ -111,6 +134,12 @@ program
   .option('-t, --token <token>', 'GitHub personal access token')
   .option('-l, --label <labels...>', 'Filter by labels')
   .option('-a, --assignee <assignees...>', 'Filter by assignees')
+  .option('-s, --state <state>', 'Filter by state (open, closed, all)', 'open')
+  .option('--search <text>', 'Search text in title or body')
+  .option('--created-since <date>', 'Filter issues created since date (ISO 8601 format)')
+  .option('--created-until <date>', 'Filter issues created until date (ISO 8601 format)')
+  .option('--updated-since <date>', 'Filter issues updated since date (ISO 8601 format)')
+  .option('--updated-until <date>', 'Filter issues updated until date (ISO 8601 format)')
   .option('--show-bottlenecks', 'Show bottleneck issues')
   .option('--show-critical-path', 'Show critical path')
   .action(async (repository: string, options: any) => {
@@ -124,6 +153,13 @@ program
         process.exit(1);
       }
 
+      // Validate state
+      const state = options.state?.toLowerCase();
+      if (state && state !== 'open' && state !== 'closed' && state !== 'all') {
+        console.error('Error: State must be either "open", "closed", or "all"');
+        process.exit(1);
+      }
+
       // Create visualizer
       const visualizer = new IssueDependencyVisualizer(token);
 
@@ -131,6 +167,16 @@ program
       const graph = await visualizer.generateGraph(repository, {
         filterLabels: options.label,
         filterAssignees: options.assignee,
+        filters: {
+          state: state as 'open' | 'closed' | 'all',
+          labels: options.label,
+          assignees: options.assignee,
+          searchText: options.search,
+          createdSince: options.createdSince,
+          createdUntil: options.createdUntil,
+          updatedSince: options.updatedSince,
+          updatedUntil: options.updatedUntil,
+        },
       });
 
       // Show metrics

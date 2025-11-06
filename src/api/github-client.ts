@@ -4,7 +4,7 @@
 
 import { Octokit } from '@octokit/rest';
 import { graphql } from '@octokit/graphql';
-import { Issue, RepositoryInfo } from './types';
+import { Issue, RepositoryInfo, IssueFilterOptions } from './types';
 
 export class GitHubClient {
   private octokit: Octokit;
@@ -20,69 +20,46 @@ export class GitHubClient {
   }
 
   /**
-   * Fetch all open issues from a repository using GraphQL
+   * Fetch issues from a repository using GraphQL with optional filters
    */
-  async fetchOpenIssues(repoInfo: RepositoryInfo): Promise<Issue[]> {
+  async fetchOpenIssues(
+    repoInfo: RepositoryInfo,
+    filters?: IssueFilterOptions
+  ): Promise<Issue[]> {
     const issues: Issue[] = [];
     let hasNextPage = true;
     let cursor: string | null = null;
 
+    // Determine states to fetch based on filter
+    const states = this.getStatesForQuery(filters?.state);
+
+    // Build labels filter for GraphQL
+    const labelsFilter = filters?.labels && filters.labels.length > 0
+      ? filters.labels
+      : undefined;
+
     while (hasNextPage) {
-      const query = `
-        query GetIssues($owner: String!, $repo: String!, $cursor: String) {
-          repository(owner: $owner, name: $repo) {
-            issues(first: 100, states: OPEN, after: $cursor) {
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-              nodes {
-                id
-                number
-                title
-                state
-                url
-                body
-                createdAt
-                updatedAt
-                assignees(first: 10) {
-                  nodes {
-                    login
-                  }
-                }
-                labels(first: 20) {
-                  nodes {
-                    name
-                  }
-                }
-                trackedInIssues(first: 50) {
-                  nodes {
-                    number
-                  }
-                }
-                trackedIssues(first: 50) {
-                  nodes {
-                    number
-                  }
-                }
-              }
-            }
-          }
-        }
-      `;
+      const query = this.buildGraphQLQuery(labelsFilter);
 
       try {
-        const response: any = await this.graphqlWithAuth(query, {
+        const variables: any = {
           owner: repoInfo.owner,
           repo: repoInfo.repo,
           cursor,
-        });
+          states,
+        };
+
+        if (labelsFilter) {
+          variables.labels = labelsFilter;
+        }
+
+        const response: any = await this.graphqlWithAuth(query, variables);
 
         const issueNodes = response.repository.issues.nodes;
         const pageInfo = response.repository.issues.pageInfo;
 
         for (const node of issueNodes) {
-          issues.push({
+          const issue: Issue = {
             id: node.id,
             number: node.number,
             title: node.title,
@@ -93,7 +70,12 @@ export class GitHubClient {
             labels: node.labels.nodes || [],
             createdAt: node.createdAt,
             updatedAt: node.updatedAt,
-          });
+          };
+
+          // Apply post-fetch filters
+          if (this.matchesFilters(issue, filters)) {
+            issues.push(issue);
+          }
         }
 
         hasNextPage = pageInfo.hasNextPage;
@@ -101,7 +83,7 @@ export class GitHubClient {
       } catch (error) {
         // Fallback to REST API if GraphQL fails
         console.warn('GraphQL query failed, falling back to REST API:', error);
-        return this.fetchOpenIssuesREST(repoInfo);
+        return this.fetchOpenIssuesREST(repoInfo, filters);
       }
     }
 
@@ -109,20 +91,157 @@ export class GitHubClient {
   }
 
   /**
+   * Build GraphQL query dynamically based on filters
+   */
+  private buildGraphQLQuery(labels?: string[]): string {
+    const labelsParam = labels ? ', $labels: [String!]' : '';
+    const labelsFilter = labels ? ', labels: $labels' : '';
+
+    return `
+      query GetIssues($owner: String!, $repo: String!, $cursor: String, $states: [IssueState!]${labelsParam}) {
+        repository(owner: $owner, name: $repo) {
+          issues(first: 100, states: $states${labelsFilter}, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              number
+              title
+              state
+              url
+              body
+              createdAt
+              updatedAt
+              assignees(first: 10) {
+                nodes {
+                  login
+                }
+              }
+              labels(first: 20) {
+                nodes {
+                  name
+                }
+              }
+              trackedInIssues(first: 50) {
+                nodes {
+                  number
+                }
+              }
+              trackedIssues(first: 50) {
+                nodes {
+                  number
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+  }
+
+  /**
+   * Get states array for GraphQL query
+   */
+  private getStatesForQuery(state?: 'open' | 'closed' | 'all'): string[] {
+    if (!state || state === 'open') {
+      return ['OPEN'];
+    } else if (state === 'closed') {
+      return ['CLOSED'];
+    } else {
+      return ['OPEN', 'CLOSED'];
+    }
+  }
+
+  /**
+   * Check if issue matches post-fetch filters
+   */
+  private matchesFilters(issue: Issue, filters?: IssueFilterOptions): boolean {
+    if (!filters) {
+      return true;
+    }
+
+    // Filter by assignees
+    if (filters.assignees && filters.assignees.length > 0) {
+      const issueAssignees = issue.assignees.map(a => a.login);
+      const hasMatchingAssignee = filters.assignees.some(assignee =>
+        issueAssignees.includes(assignee)
+      );
+      if (!hasMatchingAssignee) {
+        return false;
+      }
+    }
+
+    // Filter by search text (title or body)
+    if (filters.searchText) {
+      const searchLower = filters.searchText.toLowerCase();
+      const titleMatch = issue.title.toLowerCase().includes(searchLower);
+      const bodyMatch = issue.body.toLowerCase().includes(searchLower);
+      if (!titleMatch && !bodyMatch) {
+        return false;
+      }
+    }
+
+    // Filter by created date
+    if (filters.createdSince) {
+      const createdDate = new Date(issue.createdAt);
+      const sinceDate = new Date(filters.createdSince);
+      if (createdDate < sinceDate) {
+        return false;
+      }
+    }
+
+    if (filters.createdUntil) {
+      const createdDate = new Date(issue.createdAt);
+      const untilDate = new Date(filters.createdUntil);
+      if (createdDate > untilDate) {
+        return false;
+      }
+    }
+
+    // Filter by updated date
+    if (filters.updatedSince) {
+      const updatedDate = new Date(issue.updatedAt);
+      const sinceDate = new Date(filters.updatedSince);
+      if (updatedDate < sinceDate) {
+        return false;
+      }
+    }
+
+    if (filters.updatedUntil) {
+      const updatedDate = new Date(issue.updatedAt);
+      const untilDate = new Date(filters.updatedUntil);
+      if (updatedDate > untilDate) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Fallback method using REST API
    */
-  private async fetchOpenIssuesREST(repoInfo: RepositoryInfo): Promise<Issue[]> {
+  private async fetchOpenIssuesREST(
+    repoInfo: RepositoryInfo,
+    filters?: IssueFilterOptions
+  ): Promise<Issue[]> {
     const issues: Issue[] = [];
     let page = 1;
     const perPage = 100;
+
+    // Determine state for REST API
+    const state = filters?.state === 'all' ? 'all' : (filters?.state || 'open');
 
     while (true) {
       const response = await this.octokit.issues.listForRepo({
         owner: repoInfo.owner,
         repo: repoInfo.repo,
-        state: 'open',
+        state: state as 'open' | 'closed' | 'all',
         per_page: perPage,
         page,
+        labels: filters?.labels?.join(','),
       });
 
       if (response.data.length === 0) {
@@ -135,7 +254,7 @@ export class GitHubClient {
           continue;
         }
 
-        issues.push({
+        const issueData: Issue = {
           id: issue.node_id,
           number: issue.number,
           title: issue.title,
@@ -146,7 +265,12 @@ export class GitHubClient {
           labels: issue.labels.map((l) => ({ name: typeof l === 'string' ? l : l.name || '' })),
           createdAt: issue.created_at,
           updatedAt: issue.updated_at,
-        });
+        };
+
+        // Apply post-fetch filters
+        if (this.matchesFilters(issueData, filters)) {
+          issues.push(issueData);
+        }
       }
 
       if (response.data.length < perPage) {

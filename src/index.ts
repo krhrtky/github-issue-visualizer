@@ -59,8 +59,20 @@ export class IssueDependencyVisualizer {
 
     // Fetch issues
     console.log(`Fetching issues from ${repoInfo.owner}/${repoInfo.repo}...`);
-    const issues = await this.client.fetchOpenIssues(repoInfo);
-    console.log(`Found ${issues.length} open issues`);
+    const issues = await this.client.fetchOpenIssues(repoInfo, options?.filters);
+
+    // Log filtered results
+    if (options?.filters) {
+      const filterInfo: string[] = [];
+      if (options.filters.state) filterInfo.push(`state: ${options.filters.state}`);
+      if (options.filters.labels?.length) filterInfo.push(`labels: ${options.filters.labels.join(', ')}`);
+      if (options.filters.assignees?.length) filterInfo.push(`assignees: ${options.filters.assignees.join(', ')}`);
+      if (options.filters.searchText) filterInfo.push(`search: "${options.filters.searchText}"`);
+      if (filterInfo.length > 0) {
+        console.log(`Filters applied: ${filterInfo.join(', ')}`);
+      }
+    }
+    console.log(`Found ${issues.length} issues`);
 
     // Parse dependencies
     console.log('Parsing dependencies...');
