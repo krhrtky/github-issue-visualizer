@@ -1,0 +1,53 @@
+{
+  "name": "github-issue-dependency-visualizer",
+  "version": "1.0.0",
+  "description": "Visualize dependencies between GitHub issues to identify critical paths and support task prioritization",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "github-issue-deps": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "github",
+    "issues",
+    "dependencies",
+    "visualization",
+    "critical-path",
+    "mermaid",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/core": "^5.0.0",
+    "@octokit/graphql": "^7.0.0",
+    "@octokit/rest": "^20.0.0",
+    "commander": "^11.0.0",
+    "cytoscape": "^3.28.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "jest": "^29.5.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
