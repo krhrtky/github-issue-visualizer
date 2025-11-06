@@ -70,7 +70,7 @@ export class DependencyParser {
   private parsePatterns(
     text: string,
     patterns: DependencyPattern[],
-    type: 'sub-issue' | 'blocked-by'
+    _type: 'sub-issue' | 'blocked-by'
   ): Set<number> {
     const issueNumbers = new Set<number>();
 

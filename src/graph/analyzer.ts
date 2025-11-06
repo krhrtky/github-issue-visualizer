@@ -2,8 +2,8 @@
  * Analyze dependency graph and calculate critical paths
  */
 
-import { DependencyGraph, IssueNode } from '../api/types';
-import { GraphNode, CycleError } from './types';
+import { DependencyGraph } from '../api/types';
+import { CycleError } from './types';
 
 export class GraphAnalyzer {
   /**
