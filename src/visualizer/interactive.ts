@@ -2,7 +2,7 @@
  * Generate interactive HTML visualization using Cytoscape.js
  */
 
-import { DependencyGraph, IssueNode } from '../api/types';
+import { DependencyGraph } from '../api/types';
 import { Formatter } from './formatter';
 
 export class InteractiveGenerator {
