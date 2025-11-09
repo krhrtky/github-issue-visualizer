@@ -164,18 +164,18 @@ graph TD
     N17["#17: Task: Create reset UI"]
     N18["#18: Task: Integration testing"]
 
-    style N4 fill:#ffd43b
-    style N5 fill:#ff6b6b
-    style N6 fill:#ffd43b
-    style N7 fill:#ffd43b
-    style N8 fill:#ff6b6b
-    style N9 fill:#ff6b6b
+    style N4 fill:#74c0fc
+    style N5 fill:#74c0fc
+    style N6 fill:#74c0fc
+    style N7 fill:#74c0fc
+    style N8 fill:#74c0fc
+    style N9 fill:#74c0fc
     style N10 fill:#74c0fc
-    style N11 fill:#ffd43b
-    style N12 fill:#ffd43b
+    style N11 fill:#74c0fc
+    style N12 fill:#74c0fc
     style N13 fill:#74c0fc
     style N14 fill:#74c0fc
-    style N15 fill:#ffd43b
+    style N15 fill:#74c0fc
     style N16 fill:#74c0fc
     style N17 fill:#74c0fc
     style N18 fill:#74c0fc
@@ -184,53 +184,14 @@ graph TD
 **Legend**:
 - **Solid arrows** (`-->`): Blocked-by dependencies (e.g., #12 → #13 means #13 is blocked by #12)
 - **Dashed arrows** (`-.->`)): Sub-issue relationships (e.g., #6 -.-> #4 means #6 is a sub-issue of #4)
-- **Red nodes** (🔴): On critical path
-- **Yellow nodes** (🟡): Medium criticality (2-4 dependents)
-- **Blue nodes** (🔵): Low criticality (0-1 dependents)
-
-### Critical Path
-
-The **critical path** represents the longest chain of dependencies. Any delay in these issues will delay the entire project.
-
-**Critical Path**: #5 → #9 → #8 (length: 3)
-
-```mermaid
-graph LR
-
-    N5 ==> N9
-    N9 ==> N8
-
-    N5["#5: Epic: v2.0 Release"]
-    N9["#9: Feature: Backend API"]
-    N8["#8: Feature: Frontend Dashboard"]
-
-    style N5 fill:#ff6b6b
-    style N9 fill:#ff6b6b
-    style N8 fill:#ff6b6b
-```
-
-**Interpretation**:
-1. **#5 (v2.0 Release)** depends on (is a parent of) **#9 (Backend API)**
-2. **#8 (Frontend Dashboard)** depends on **#9 (Backend API)**
-3. Therefore: Complete #9 first, then #8, then all sub-issues to finish #5
+- **Blue nodes** (🔵): All nodes are currently displayed in blue
 
 ## Metrics
 
 ```
 Total Issues:              15
 Total Dependencies:        17
-Critical Path Length:       3
 ```
-
-### Bottlenecks (High Criticality)
-
-Issues with the most dependents (blocking the most other issues):
-
-1. **#5: Epic: v2.0 Release** - 3 dependents (sub-issues: #8, #9, #10)
-2. **#6: Feature: OAuth Integration** - 3 dependents (#4 as parent, #13, #14 as sub-issues, #18 blocked)
-3. **#7: Feature: Password Reset** - 3 dependents (#4 as parent, #16, #17 as sub-issues, #18 blocked)
-4. **#4: Epic: User Authentication System** - 2 dependents (#6, #7 as sub-issues)
-5. **#12: Task: Implement user model** - 2 dependents (#13, #14 blocked by this)
 
 ## Relationship Pattern Examples
 
@@ -278,11 +239,7 @@ Maximum nesting: 3 levels (Epic → Feature → Task)
 
 Issue #13 has both hierarchical (sub-issue) and sequential (blocked-by) dependencies, all managed through GitHub's native features.
 
-### Pattern 5: Critical Path Visualization
-
-The critical path (#5 → #9 → #8) is highlighted in red in the complete graph.
-
-### Pattern 6: Complex Dependency Graph
+### Pattern 5: Complex Dependency Graph
 
 The complete graph above shows all patterns combined.
 
@@ -301,14 +258,14 @@ gh auth login
 ### Basic Visualization
 
 ```bash
-# Analyze dependencies
-node dist/cli/index.js analyze krhrtky/github-issue-visualizer
-
 # Generate Mermaid diagram
 node dist/cli/index.js visualize krhrtky/github-issue-visualizer -o graph.md
 
-# Show critical path only
-node dist/cli/index.js analyze krhrtky/github-issue-visualizer --show-critical-path
+# Filter by labels
+node dist/cli/index.js visualize krhrtky/github-issue-visualizer --label "feature"
+
+# Use GitHub Search query
+node dist/cli/index.js visualize krhrtky/github-issue-visualizer --query "is:open is:blocked"
 ```
 
 ### Interactive HTML Visualization
@@ -334,10 +291,9 @@ const graph = await visualizer.generateGraph('krhrtky/github-issue-visualizer');
 
 console.log(`Total Issues: ${graph.metrics.totalIssues}`);
 console.log(`Total Dependencies: ${graph.metrics.totalDependencies}`);
-console.log(`Critical Path Length: ${graph.metrics.criticalPathLength}`);
 
 // Generate visualization
-const mermaid = visualizer.generateVisualization(graph, 'mermaid', true);
+const mermaid = visualizer.generateVisualization(graph, 'mermaid');
 console.log(mermaid);
 ```
 
@@ -395,10 +351,9 @@ Or use the GitHub web UI: Issue page → Development → Add blocked by
 ### Expected Behavior ✅
 
 - ✅ 17 dependencies detected from GitHub's native REST API
-- ✅ No circular dependencies
-- ✅ Critical path correctly calculated
-- ✅ Bottlenecks identified
+- ✅ No circular dependencies detected
 - ✅ Both Mermaid and interactive HTML formats work
+- ✅ All relationship types correctly visualized (blocked-by and sub-issues)
 
 ### Implementation Details
 

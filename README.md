@@ -7,10 +7,10 @@ A powerful library to visualize dependencies between GitHub Issues, making it ea
 
 ## Features
 
-- 🔍 **Automatic Dependency Detection**: Parse both native GitHub dependencies and text-based patterns
-- 📊 **Critical Path Analysis**: Identify the longest dependency chain and bottleneck issues
+- 🔍 **Native GitHub Integration**: Uses GitHub REST API for sub-issues and dependencies
+- 🔄 **Cycle Detection**: Detects circular dependencies in your issue graph
 - 🎨 **Multiple Visualizations**: Generate Mermaid diagrams or interactive HTML visualizations
-- 🎯 **Smart Filtering**: Filter by labels, assignees, or custom criteria
+- 🎯 **Advanced Filtering**: Filter by labels, assignees, dates, or GitHub Search queries
 - 🚀 **Fast & Efficient**: Process hundreds of issues in seconds
 - 💻 **CLI & Library**: Use as a command-line tool or integrate into your workflow
 
@@ -44,8 +44,9 @@ github-issue-deps visualize owner/repo \
   --label "priority:high" \
   --label "bug"
 
-# Analyze only (no visualization)
-github-issue-deps analyze owner/repo --show-critical-path
+# Use GitHub Search query for advanced filtering
+github-issue-deps visualize owner/repo \
+  --query "is:blocked label:bug"
 ```
 
 ### Library Usage
@@ -62,9 +63,9 @@ const graph = await visualizer.generateGraph('owner/repo');
 const mermaid = visualizer.generateVisualization(graph, 'mermaid');
 console.log(mermaid);
 
-// Generate metrics
-const metrics = visualizer.generateMetricsSummary(graph);
-console.log(metrics);
+// Show metrics
+console.log(`Total Issues: ${graph.metrics.totalIssues}`);
+console.log(`Total Dependencies: ${graph.metrics.totalDependencies}`);
 ```
 
 ## How It Works
@@ -74,27 +75,28 @@ console.log(metrics);
 The visualizer supports two types of dependencies:
 
 1. **Blocked-by**: Issues that must be completed before the current issue can start
-   - Patterns: `blocked by #123`, `depends on #456`, `requires #789`
+   - Detected via GitHub's native dependencies API
 
 2. **Sub-issues**: Issues that are part of completing a larger issue
-   - Patterns: `sub-issue of #123`, `part of #456`
-   - Task lists: `- [ ] Complete #789`
+   - Detected via GitHub's native sub-issues API
 
 ### Dependency Detection
 
-Dependencies are detected through:
+Dependencies are detected through GitHub's Native REST API:
 
-1. **GitHub's Native API**: Uses GraphQL to fetch tracked issues
-2. **Text Parsing**: Scans issue bodies for dependency patterns
-3. **Task Lists**: Identifies issues referenced in checklists
+1. **Sub-issues API**: `/repos/{owner}/{repo}/issues/{issue_number}/sub_issues`
+2. **Parent issues API**: `/repos/{owner}/{repo}/issues/{issue_number}/parent`
+3. **Dependencies API**: `/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by`
+4. **Blocking API**: `/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking`
 
-### Critical Path Algorithm
+### Cycle Detection
 
-The critical path is calculated using:
+The analyzer detects circular dependencies using depth-first search:
 
-1. **Topological Sort**: Ensures no circular dependencies
-2. **Depth Calculation**: Find the longest path from leaf to each node
-3. **Path Reconstruction**: Backtrack from highest depth to build the critical path
+1. **DFS Traversal**: Visit all nodes in the dependency graph
+2. **Recursion Stack**: Track nodes currently being explored
+3. **Cycle Detection**: If a node in the recursion stack is revisited, a cycle exists
+4. **Error Reporting**: Throws detailed error with the cycle path
 
 ## CLI Reference
 
@@ -113,7 +115,13 @@ github-issue-deps visualize <repository> [options]
 - `-o, --output <path>`: Save to file instead of printing to console
 - `-l, --label <labels...>`: Filter by labels (can specify multiple)
 - `-a, --assignee <assignees...>`: Filter by assignees
-- `--no-critical-path`: Don't highlight critical path
+- `-s, --state <state>`: Filter by state: `open`, `closed`, or `all` (default: open)
+- `-q, --query <query>`: GitHub Search query (uses Search API when specified)
+- `--search <text>`: Search text in title or body
+- `--created-since <date>`: Filter issues created since date (ISO 8601 format)
+- `--created-until <date>`: Filter issues created until date (ISO 8601 format)
+- `--updated-since <date>`: Filter issues updated since date (ISO 8601 format)
+- `--updated-until <date>`: Filter issues updated until date (ISO 8601 format)
 
 **Examples:**
 
@@ -131,30 +139,15 @@ github-issue-deps visualize vuejs/vue \
 github-issue-deps visualize microsoft/vscode \
   --label "bug" \
   --assignee "@me"
-```
 
-### `analyze` Command
+# Use GitHub Search query
+github-issue-deps visualize owner/repo \
+  --query "is:open is:blocked label:feature"
 
-Analyze dependencies and show metrics only.
-
-```bash
-github-issue-deps analyze <repository> [options]
-```
-
-**Options:**
-
-- `-t, --token <token>`: GitHub personal access token
-- `-l, --label <labels...>`: Filter by labels
-- `-a, --assignee <assignees...>`: Filter by assignees
-- `--show-bottlenecks`: Show bottleneck issues
-- `--show-critical-path`: Show critical path visualization
-
-**Example:**
-
-```bash
-github-issue-deps analyze nodejs/node \
-  --show-critical-path \
-  --show-bottlenecks
+# Filter by date range
+github-issue-deps visualize owner/repo \
+  --created-since 2025-01-01 \
+  --state all
 ```
 
 ## Library API
@@ -174,13 +167,10 @@ class IssueDependencyVisualizer {
 
   generateVisualization(
     graph: DependencyGraph,
-    format: 'mermaid' | 'interactive',
-    highlightCriticalPath?: boolean
+    format: 'mermaid' | 'interactive'
   ): string;
 
   generateMetricsSummary(graph: DependencyGraph): string;
-
-  generateCriticalPathVisualization(graph: DependencyGraph): string;
 }
 ```
 
@@ -208,7 +198,10 @@ const result = await visualizeRepository(
   process.env.GITHUB_TOKEN!,
   {
     format: 'mermaid',
-    filterLabels: ['good first issue'],
+    filters: {
+      labels: ['good first issue'],
+      state: 'open',
+    },
   }
 );
 
@@ -247,10 +240,11 @@ graph LR
     N3 --> N4
     N4 --> N5[#5: Generate visualizations]
 
-    style N1 fill:#ff6b6b
-    style N2 fill:#ff6b6b
-    style N4 fill:#ff6b6b
-    style N5 fill:#ff6b6b
+    style N1 fill:#74c0fc
+    style N2 fill:#74c0fc
+    style N3 fill:#74c0fc
+    style N4 fill:#74c0fc
+    style N5 fill:#74c0fc
 ```
 
 ### Metrics Summary
@@ -260,21 +254,6 @@ graph LR
 
 - **Total Issues**: 15
 - **Total Dependencies**: 23
-- **Critical Path Length**: 5
-
-### Critical Path
-
-- #1: Setup project structure
-- #2: Implement API client
-- #4: Build graph analyzer
-- #5: Generate visualizations
-- #7: Create documentation
-
-### Bottlenecks (High Criticality Issues)
-
-- #2: Implement API client (8 dependents)
-- #4: Build graph analyzer (5 dependents)
-- #1: Setup project structure (4 dependents)
 ```
 
 ## Architecture
@@ -285,11 +264,11 @@ src/
 │   ├── github-client.ts    # GitHub API wrapper
 │   └── types.ts            # Type definitions
 ├── parser/
-│   ├── dependency-parser.ts # Parse text dependencies
-│   └── patterns.ts          # Regex patterns
+│   ├── dependency-parser.ts # Dependency parser (unused)
+│   └── patterns.ts          # Pattern definitions
 ├── graph/
 │   ├── builder.ts          # Build dependency graph
-│   ├── analyzer.ts         # Critical path analysis
+│   ├── analyzer.ts         # Cycle detection
 │   └── types.ts            # Graph types
 ├── visualizer/
 │   ├── mermaid.ts          # Mermaid generator
@@ -379,6 +358,10 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Roadmap
 
+- [ ] GraphQL API migration for improved performance
+- [ ] Critical path analysis and bottleneck detection
+- [ ] Node coloring based on criticality
+- [ ] Optional text parsing fallback for legacy issues
 - [ ] Cross-repository dependencies
 - [ ] GitHub Action integration
 - [ ] Real-time updates via webhooks

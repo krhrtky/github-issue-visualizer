@@ -191,31 +191,7 @@ depth(#2) = max(
 ) = 2
 ```
 
-### Pattern 5: Critical Path Visualization
-
-```mermaid
-graph LR
-    N5[#5: Initialize] ==> N4[#4: Configure]
-    N4 ==> N2[#2: Test]
-    N2 ==> N1[#1: Deploy]
-    style N5 fill:#ff6b6b
-    style N4 fill:#ff6b6b
-    style N2 fill:#ff6b6b
-    style N1 fill:#ff6b6b
-```
-
-**Interpretation**:
-- Red nodes are on the **critical path** (longest path in the graph)
-- Critical path length: 4 issues
-- Any delay in these issues delays the entire project
-
-**How Critical Path is Calculated**:
-1. Topological sort to detect cycles (throws error if found)
-2. Depth calculation via DFS from leaf nodes
-3. Find node with maximum depth (#1)
-4. Backtrack from #1 to reconstruct path
-
-### Pattern 6: Complex Dependency Graph
+### Pattern 5: Complex Dependency Graph
 
 ```mermaid
 graph LR
@@ -229,19 +205,18 @@ graph LR
     N6[#6: Sub-task A1] -.-> N2
     N7[#7: Sub-task A2] -.-> N2
 
-    style N1 fill:#ff6b6b
-    style N2 fill:#ff6b6b
-    style N3 fill:#ffa94d
-    style N4 fill:#ff6b6b
-    style N5 fill:#ff6b6b
+    style N1 fill:#74c0fc
+    style N2 fill:#74c0fc
+    style N3 fill:#74c0fc
+    style N4 fill:#74c0fc
+    style N5 fill:#74c0fc
     style N6 fill:#74c0fc
     style N7 fill:#74c0fc
 ```
 
 **Interpretation**:
-- **Critical Path** (red): #4 → #5 → #2 → #1
-- **High Criticality** (orange): #3 (blocking 1 issue, but not on critical path)
-- **Low Criticality** (blue): #6, #7 (no blocking dependencies)
+- #1 (Release) is blocked by Features A and B
+- Both Features #2 and #3 depend on #4 (Design) and #5 (API ready)
 - Sub-issues #6, #7 contribute to Feature A (#2)
 
 ## Implementation Details
@@ -307,14 +282,9 @@ Text parsing has been **scoped out** to ensure data consistency and reliability:
 | Blocked-by | `-->` (solid) | `solid` | `#666` (dark gray) |
 | Sub-issue | `-.->` (dashed) | `dashed` | `#999` (light gray) |
 
-### Node Coloring (Criticality)
+### Node Coloring
 
-| Condition | Color | Hex | Meaning |
-|-----------|-------|-----|---------|
-| On Critical Path | Red | `#ff6b6b` | Part of longest path |
-| High Criticality (5+ dependents) | Orange | `#ffa94d` | Bottleneck risk |
-| Medium Criticality (2-4 dependents) | Yellow | `#ffd43b` | Some impact |
-| Low Criticality (0-1 dependents) | Blue | `#74c0fc` | Minimal impact |
+All nodes are currently colored in blue (`#74c0fc`). Future enhancements may include criticality-based coloring.
 
 ## Usage Examples
 
@@ -327,8 +297,8 @@ github-issue-viz visualize owner/repo --token $GITHUB_TOKEN
 # Filter by labels
 github-issue-viz visualize owner/repo --label "sprint-1" --label "feature"
 
-# Show critical path only
-github-issue-viz analyze owner/repo --show-critical-path
+# Use GitHub Search query
+github-issue-viz visualize owner/repo --query "is:blocked label:feature"
 
 # Generate interactive HTML
 github-issue-viz visualize owner/repo -f interactive -o graph.html
@@ -346,7 +316,6 @@ const graph = await visualizer.generateGraph('owner/repo', {
     state: 'open',
     labels: ['feature'],
   },
-  highlightCriticalPath: true,
 });
 
 // Generate Mermaid diagram
@@ -354,13 +323,13 @@ const mermaid = visualizer.generateVisualization(graph, 'mermaid');
 console.log(mermaid);
 
 // Get metrics
-console.log(`Critical Path Length: ${graph.metrics.criticalPathLength}`);
-console.log(`Bottlenecks: ${graph.metrics.bottlenecks.length}`);
+console.log(`Total Issues: ${graph.metrics.totalIssues}`);
+console.log(`Total Dependencies: ${graph.metrics.totalDependencies}`);
 ```
 
 ## Filtering Options
 
-### Pre-fetch Filters (API Level)
+### API-Level Filters
 
 Applied during GitHub API query:
 
@@ -368,14 +337,17 @@ Applied during GitHub API query:
 {
   state: 'open' | 'closed' | 'all',  // Default: 'open'
   labels: ['bug', 'feature'],        // Issues with these labels
-  assignees: ['username'],           // Assigned issues + unassigned
+  assignees: ['username'],           // Issues assigned to user
   searchText: 'keyword',             // Title or body contains
   createdSince: '2025-01-01',        // ISO 8601 date
+  createdUntil: '2025-12-31',        // ISO 8601 date
+  updatedSince: '2025-01-01',        // ISO 8601 date
   updatedUntil: '2025-12-31',        // ISO 8601 date
+  query: 'is:blocked label:bug',     // GitHub Search query
 }
 ```
 
-### Post-fetch Filters (Graph Level)
+### Graph-Level Filters
 
 Applied after building graph:
 
@@ -391,30 +363,35 @@ Applied after building graph:
 ### Current Limitations
 
 ❌ **Not Yet Supported**:
-1. Related-to (weak bidirectional relationships)
-2. Duplicates
-3. Cross-repository dependencies
-4. Multiple parent issues (only first parent tracked)
-5. Dependency strength/weight
+1. Critical path analysis (depth calculation, bottleneck detection)
+2. Node coloring based on criticality
+3. Related-to (weak bidirectional relationships)
+4. Duplicates
+5. Cross-repository dependencies
+6. Multiple parent issues (only first parent tracked)
+7. Dependency strength/weight
 
 ### Future Enhancements (Priority Order)
 
 **High Priority**:
 1. ✅ GitHub REST API integration for sub-issues (COMPLETED)
 2. ✅ GitHub REST API integration for dependencies (blocked-by/blocking) (COMPLETED)
-3. 🔄 GraphQL migration for improved performance
-4. 🔄 Relationship type expansion (`related-to`, `duplicates`)
+3. ✅ GitHub Search API support (COMPLETED)
+4. 🔄 Critical path analysis and bottleneck detection
+5. 🔄 Node coloring based on criticality scores
+6. 🔄 GraphQL migration for improved performance
 
 **Medium Priority**:
-5. Optional text parsing fallback for legacy issues
-6. Multiple parent issue support
-7. Cross-repository dependency tracking
-8. Dependency metadata (strength, confidence level)
+7. Optional text parsing fallback for legacy issues
+8. Relationship type expansion (`related-to`, `duplicates`)
+9. Multiple parent issue support
+10. Cross-repository dependency tracking
+11. Dependency metadata (strength, confidence level)
 
 **Low Priority**:
-9. Bidirectional relationships (related-to)
-10. Custom relationship types
-11. Temporal dependency analysis
+12. Bidirectional relationships (related-to)
+13. Custom relationship types
+14. Temporal dependency analysis
 
 ## Cycle Detection
 
