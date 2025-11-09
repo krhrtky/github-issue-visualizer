@@ -3,156 +3,38 @@
  */
 
 import { Octokit } from '@octokit/rest';
-import { graphql } from '@octokit/graphql';
 import { Issue, RepositoryInfo, IssueFilterOptions } from './types';
+// GraphQL support planned for future implementation
+// import { graphql } from '@octokit/graphql';
 
 export class GitHubClient {
   private octokit: Octokit;
-  private graphqlWithAuth: typeof graphql;
 
   constructor(token: string) {
     this.octokit = new Octokit({ auth: token });
-    this.graphqlWithAuth = graphql.defaults({
-      headers: {
-        authorization: `token ${token}`,
-      },
-    });
+    // Note: GraphQL support planned for future implementation
+    // private graphqlWithAuth: typeof graphql;
+    // this.graphqlWithAuth = graphql.defaults({
+    //   headers: {
+    //     authorization: `token ${token}`,
+    //     'GraphQL-Features': 'sub_issues',
+    //   },
+    // });
   }
 
   /**
-   * Fetch issues from a repository using GraphQL with optional filters
+   * Fetch issues from a repository using REST API with optional filters
+   * Note: GraphQL support is planned for future implementation
    */
   async fetchOpenIssues(
     repoInfo: RepositoryInfo,
     filters?: IssueFilterOptions
   ): Promise<Issue[]> {
-    const issues: Issue[] = [];
-    let hasNextPage = true;
-    let cursor: string | null = null;
-
-    // Determine states to fetch based on filter
-    const states = this.getStatesForQuery(filters?.state);
-
-    // Build labels filter for GraphQL
-    const labelsFilter = filters?.labels && filters.labels.length > 0
-      ? filters.labels
-      : undefined;
-
-    while (hasNextPage) {
-      const query = this.buildGraphQLQuery(labelsFilter);
-
-      try {
-        const variables: any = {
-          owner: repoInfo.owner,
-          repo: repoInfo.repo,
-          cursor,
-          states,
-        };
-
-        if (labelsFilter) {
-          variables.labels = labelsFilter;
-        }
-
-        const response: any = await this.graphqlWithAuth(query, variables);
-
-        const issueNodes = response.repository.issues.nodes;
-        const pageInfo = response.repository.issues.pageInfo;
-
-        for (const node of issueNodes) {
-          const issue: Issue = {
-            id: node.id,
-            number: node.number,
-            title: node.title,
-            state: node.state.toLowerCase() as 'open' | 'closed',
-            url: node.url,
-            body: node.body || '',
-            assignees: node.assignees.nodes || [],
-            labels: node.labels.nodes || [],
-            createdAt: node.createdAt,
-            updatedAt: node.updatedAt,
-          };
-
-          // Apply post-fetch filters
-          if (this.matchesFilters(issue, filters)) {
-            issues.push(issue);
-          }
-        }
-
-        hasNextPage = pageInfo.hasNextPage;
-        cursor = pageInfo.endCursor;
-      } catch (error) {
-        // Fallback to REST API if GraphQL fails
-        console.warn('GraphQL query failed, falling back to REST API:', error);
-        return this.fetchOpenIssuesREST(repoInfo, filters);
-      }
-    }
-
-    return issues;
+    return this.fetchOpenIssuesREST(repoInfo, filters);
   }
 
-  /**
-   * Build GraphQL query dynamically based on filters
-   */
-  private buildGraphQLQuery(labels?: string[]): string {
-    const labelsParam = labels ? ', $labels: [String!]' : '';
-    const labelsFilter = labels ? ', labels: $labels' : '';
-
-    return `
-      query GetIssues($owner: String!, $repo: String!, $cursor: String, $states: [IssueState!]${labelsParam}) {
-        repository(owner: $owner, name: $repo) {
-          issues(first: 100, states: $states${labelsFilter}, after: $cursor) {
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
-              id
-              number
-              title
-              state
-              url
-              body
-              createdAt
-              updatedAt
-              assignees(first: 10) {
-                nodes {
-                  login
-                }
-              }
-              labels(first: 20) {
-                nodes {
-                  name
-                }
-              }
-              trackedInIssues(first: 50) {
-                nodes {
-                  number
-                }
-              }
-              trackedIssues(first: 50) {
-                nodes {
-                  number
-                }
-              }
-            }
-          }
-        }
-      }
-    `;
-  }
-
-  /**
-   * Get states array for GraphQL query
-   */
-  private getStatesForQuery(state?: 'open' | 'closed' | 'all'): string[] {
-    if (!state || state === 'open') {
-      return ['OPEN'];
-    } else if (state === 'closed') {
-      return ['CLOSED'];
-    } else {
-      return ['OPEN', 'CLOSED'];
-    }
-  }
+  // GraphQL methods removed - REST API is now the primary method
+  // Future: Re-implement GraphQL support for better performance
 
   /**
    * Check if issue matches post-fetch filters
@@ -221,6 +103,105 @@ export class GitHubClient {
   }
 
   /**
+   * Fetch sub-issues for a given issue using REST API
+   */
+  private async fetchSubIssues(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<number[]> {
+    try {
+      const response = await this.octokit.request(
+        'GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+        {
+          owner,
+          repo,
+          issue_number: issueNumber,
+          per_page: 100,
+        }
+      );
+      return response.data.map((issue: any) => issue.number);
+    } catch (error) {
+      // Sub-issues not available or not enabled
+      return [];
+    }
+  }
+
+  /**
+   * Fetch parent issue for a given sub-issue using REST API
+   */
+  private async fetchParentIssue(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<number | undefined> {
+    try {
+      const response = await this.octokit.request(
+        'GET /repos/{owner}/{repo}/issues/{issue_number}/parent',
+        {
+          owner,
+          repo,
+          issue_number: issueNumber,
+        }
+      );
+      return response.data.number;
+    } catch (error) {
+      // No parent issue
+      return undefined;
+    }
+  }
+
+  /**
+   * Fetch blocked-by dependencies for a given issue using REST API
+   */
+  private async fetchBlockedByIssues(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<number[]> {
+    try {
+      const response = await this.octokit.request(
+        'GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by',
+        {
+          owner,
+          repo,
+          issue_number: issueNumber,
+          per_page: 100,
+        }
+      );
+      return response.data.map((issue: any) => issue.number);
+    } catch (error) {
+      // Dependencies not available or not enabled
+      return [];
+    }
+  }
+
+  /**
+   * Fetch blocking dependencies for a given issue using REST API
+   */
+  private async fetchBlockingIssues(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<number[]> {
+    try {
+      const response = await this.octokit.request(
+        'GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking',
+        {
+          owner,
+          repo,
+          issue_number: issueNumber,
+          per_page: 100,
+        }
+      );
+      return response.data.map((issue: any) => issue.number);
+    } catch (error) {
+      // Dependencies not available or not enabled
+      return [];
+    }
+  }
+
+  /**
    * Fallback method using REST API
    */
   private async fetchOpenIssuesREST(
@@ -279,6 +260,26 @@ export class GitHubClient {
 
       page++;
     }
+
+    // Fetch relationships for all issues
+    console.log('Fetching sub-issues and dependencies from REST API...');
+    await Promise.all(
+      issues.map(async (issue) => {
+        const [subIssues, parentIssue, blockedBy, blocking] = await Promise.all([
+          this.fetchSubIssues(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchParentIssue(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchBlockedByIssues(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchBlockingIssues(repoInfo.owner, repoInfo.repo, issue.number),
+        ]);
+
+        issue.trackedInIssues = subIssues;
+        if (parentIssue) {
+          issue.trackedIssues = [parentIssue];
+        }
+        issue.blockedByIssues = blockedBy;
+        issue.blockingIssues = blocking;
+      })
+    );
 
     return issues;
   }

@@ -74,17 +74,18 @@ export class IssueDependencyVisualizer {
     }
     console.log(`Found ${issues.length} issues`);
 
-    // Parse dependencies
-    console.log('Parsing dependencies...');
-    const parsedDeps = this.parser.parseAllDependencies(issues);
-    console.log(`Found ${parsedDeps.length} dependencies`);
+    // Extract dependencies from Native API (REST API)
+    console.log('Extracting dependencies from GitHub Native API...');
+    const nativeApiDeps = this.builder.extractNativeApiDependencies(issues);
+    console.log(`Found ${nativeApiDeps.length} dependencies from Native API`);
 
-    // Merge and deduplicate dependencies
-    const allDeps = this.builder.mergeDependencies(parsedDeps);
+    // Note: Text parsing is scoped out to ensure data consistency
+    // Users must use GitHub's native sub-issues and dependencies features
+    // Future: Text parsing could be re-enabled as a fallback option
 
     // Validate dependencies
     const issueNumbers = new Set(issues.map((i) => i.number));
-    const validDeps = this.parser.validateDependencies(allDeps, issueNumbers);
+    const validDeps = this.parser.validateDependencies(nativeApiDeps, issueNumbers);
 
     // Build graph
     console.log('Building dependency graph...');

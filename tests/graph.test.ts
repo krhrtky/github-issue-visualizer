@@ -85,6 +85,113 @@ describe('Graph', () => {
       expect(filtered.nodes.size).toBe(1);
       expect(filtered.nodes.has(1)).toBe(true);
     });
+
+    it('should extract dependencies from native API data (trackedIssues)', () => {
+      const issues = [
+        { ...createTestIssue(1), trackedIssues: [2, 3] },
+        createTestIssue(2),
+        createTestIssue(3),
+      ];
+
+      const deps = builder.extractNativeApiDependencies(issues);
+
+      expect(deps).toHaveLength(2);
+      expect(deps).toContainEqual({
+        type: 'sub-issue',
+        from: 1,
+        to: 2,
+        source: 'api',
+      });
+      expect(deps).toContainEqual({
+        type: 'sub-issue',
+        from: 1,
+        to: 3,
+        source: 'api',
+      });
+    });
+
+    it('should extract dependencies from native API data (trackedInIssues)', () => {
+      const issues = [
+        createTestIssue(1),
+        { ...createTestIssue(2), trackedInIssues: [1, 3] },
+        createTestIssue(3),
+      ];
+
+      const deps = builder.extractNativeApiDependencies(issues);
+
+      expect(deps).toHaveLength(2);
+      expect(deps).toContainEqual({
+        type: 'sub-issue',
+        from: 1,
+        to: 2,
+        source: 'api',
+      });
+      expect(deps).toContainEqual({
+        type: 'sub-issue',
+        from: 3,
+        to: 2,
+        source: 'api',
+      });
+    });
+
+    it('should handle empty native API data', () => {
+      const issues = [
+        createTestIssue(1),
+        createTestIssue(2),
+      ];
+
+      const deps = builder.extractNativeApiDependencies(issues);
+
+      expect(deps).toHaveLength(0);
+    });
+
+    it('should extract dependencies from native API data (blockedByIssues)', () => {
+      const issues = [
+        { ...createTestIssue(1), blockedByIssues: [2, 3] },
+        createTestIssue(2),
+        createTestIssue(3),
+      ];
+
+      const deps = builder.extractNativeApiDependencies(issues);
+
+      expect(deps).toHaveLength(2);
+      expect(deps).toContainEqual({
+        type: 'blocked-by',
+        from: 1,
+        to: 2,
+        source: 'api',
+      });
+      expect(deps).toContainEqual({
+        type: 'blocked-by',
+        from: 1,
+        to: 3,
+        source: 'api',
+      });
+    });
+
+    it('should extract dependencies from native API data (blockingIssues)', () => {
+      const issues = [
+        createTestIssue(1),
+        { ...createTestIssue(2), blockingIssues: [1, 3] },
+        createTestIssue(3),
+      ];
+
+      const deps = builder.extractNativeApiDependencies(issues);
+
+      expect(deps).toHaveLength(2);
+      expect(deps).toContainEqual({
+        type: 'blocked-by',
+        from: 1,
+        to: 2,
+        source: 'api',
+      });
+      expect(deps).toContainEqual({
+        type: 'blocked-by',
+        from: 3,
+        to: 2,
+        source: 'api',
+      });
+    });
   });
 
   describe('GraphAnalyzer', () => {

@@ -13,6 +13,10 @@ export interface Issue {
   labels: Array<{ name: string }>;
   createdAt: string;
   updatedAt: string;
+  trackedIssues?: number[];
+  trackedInIssues?: number[];
+  blockedByIssues?: number[];
+  blockingIssues?: number[];
 }
 
 export interface Dependency {
