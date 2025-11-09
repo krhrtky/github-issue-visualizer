@@ -29,6 +29,7 @@ program
   .option('-l, --label <labels...>', 'Filter by labels')
   .option('-a, --assignee <assignees...>', 'Filter by assignees')
   .option('-s, --state <state>', 'Filter by state (open, closed, all)', 'open')
+  .option('-q, --query <query>', 'GitHub Search query (uses Search API when specified)')
   .option('--search <text>', 'Search text in title or body')
   .option('--created-since <date>', 'Filter issues created since date (ISO 8601 format)')
   .option('--created-until <date>', 'Filter issues created until date (ISO 8601 format)')
@@ -71,6 +72,7 @@ program
           createdUntil: options.createdUntil,
           updatedSince: options.updatedSince,
           updatedUntil: options.updatedUntil,
+          query: options.query,
         },
       });
 

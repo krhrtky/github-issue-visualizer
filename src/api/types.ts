@@ -47,10 +47,18 @@ export interface IssueFilterOptions {
   labels?: string[];
   assignees?: string[];
   searchText?: string;
-  createdSince?: string; // ISO 8601 date string
-  createdUntil?: string; // ISO 8601 date string
-  updatedSince?: string; // ISO 8601 date string
-  updatedUntil?: string; // ISO 8601 date string
+  createdSince?: string;
+  createdUntil?: string;
+  updatedSince?: string;
+  updatedUntil?: string;
+  query?: string;
+}
+
+export interface SearchOptions {
+  query: string;
+  sort?: 'created' | 'updated' | 'comments';
+  order?: 'asc' | 'desc';
+  perPage?: number;
 }
 
 export interface VisualizationOptions {

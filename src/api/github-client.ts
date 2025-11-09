@@ -30,7 +30,145 @@ export class GitHubClient {
     repoInfo: RepositoryInfo,
     filters?: IssueFilterOptions
   ): Promise<Issue[]> {
+    if (filters?.query) {
+      return this.searchIssues(repoInfo, filters);
+    }
     return this.fetchOpenIssuesREST(repoInfo, filters);
+  }
+
+  /**
+   * Build GitHub Search query from filters
+   */
+  private buildSearchQuery(
+    repoInfo: RepositoryInfo,
+    filters: IssueFilterOptions
+  ): string {
+    const parts: string[] = [`repo:${repoInfo.owner}/${repoInfo.repo}`, 'is:issue'];
+
+    if (filters.query) {
+      parts.push(filters.query);
+    }
+
+    if (filters.state && filters.state !== 'all') {
+      parts.push(`is:${filters.state}`);
+    }
+
+    if (filters.labels && filters.labels.length > 0) {
+      filters.labels.forEach(label => parts.push(`label:"${label}"`));
+    }
+
+    if (filters.assignees && filters.assignees.length > 0) {
+      filters.assignees.forEach(assignee => parts.push(`assignee:${assignee}`));
+    }
+
+    if (filters.searchText) {
+      parts.push(`"${filters.searchText}"`);
+    }
+
+    if (filters.createdSince) {
+      parts.push(`created:>=${filters.createdSince}`);
+    }
+
+    if (filters.createdUntil) {
+      parts.push(`created:<=${filters.createdUntil}`);
+    }
+
+    if (filters.updatedSince) {
+      parts.push(`updated:>=${filters.updatedSince}`);
+    }
+
+    if (filters.updatedUntil) {
+      parts.push(`updated:<=${filters.updatedUntil}`);
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * Search issues using GitHub Search API
+   */
+  private async searchIssues(
+    repoInfo: RepositoryInfo,
+    filters: IssueFilterOptions
+  ): Promise<Issue[]> {
+    const query = this.buildSearchQuery(repoInfo, filters);
+    const issues: Issue[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    console.log(`Searching issues with query: ${query}`);
+
+    let hasMoreResults = true;
+    while (hasMoreResults) {
+      const response = await this.octokit.search.issuesAndPullRequests({
+        q: query,
+        per_page: perPage,
+        page,
+      });
+
+      if (response.data.items.length === 0) {
+        hasMoreResults = false;
+        break;
+      }
+
+      for (const item of response.data.items) {
+        if (item.pull_request) {
+          continue;
+        }
+
+        const issue: Issue = {
+          id: item.node_id,
+          number: item.number,
+          title: item.title,
+          state: item.state as 'open' | 'closed',
+          url: item.html_url,
+          body: item.body || '',
+          assignees: item.assignees?.map((a) => ({ login: a.login })) || [],
+          labels: item.labels.map((l) => ({ name: typeof l === 'string' ? l : l.name || '' })),
+          createdAt: item.created_at,
+          updatedAt: item.updated_at,
+        };
+
+        issues.push(issue);
+      }
+
+      if (response.data.items.length < perPage) {
+        hasMoreResults = false;
+      }
+
+      page++;
+    }
+
+    console.log(`Fetching sub-issues and dependencies from REST API...`);
+    await this.fetchDependenciesForIssues(repoInfo, issues);
+
+    return issues;
+  }
+
+  /**
+   * Fetch dependencies for a list of issues
+   */
+  private async fetchDependenciesForIssues(
+    repoInfo: RepositoryInfo,
+    issues: Issue[]
+  ): Promise<void> {
+    await Promise.all(
+      issues.map(async (issue) => {
+        const [subIssues, parentIssue, blockedBy, blocking] = await Promise.all([
+          this.fetchSubIssues(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchParentIssue(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchBlockedByIssues(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchBlockingIssues(repoInfo.owner, repoInfo.repo, issue.number),
+        ]);
+
+        issue.trackedInIssues = subIssues;
+        if (parentIssue) {
+          issue.trackedIssues = [parentIssue];
+        }
+        issue.blockedByIssues = blockedBy;
+        issue.blockingIssues = blocking;
+      })
+    );
   }
 
   // GraphQL methods removed - REST API is now the primary method
@@ -215,7 +353,8 @@ export class GitHubClient {
     // Determine state for REST API
     const state = filters?.state === 'all' ? 'all' : (filters?.state || 'open');
 
-    while (true) {
+    let hasMoreResults = true;
+    while (hasMoreResults) {
       const response = await this.octokit.issues.listForRepo({
         owner: repoInfo.owner,
         repo: repoInfo.repo,
@@ -226,6 +365,7 @@ export class GitHubClient {
       });
 
       if (response.data.length === 0) {
+        hasMoreResults = false;
         break;
       }
 
@@ -255,31 +395,14 @@ export class GitHubClient {
       }
 
       if (response.data.length < perPage) {
-        break;
+        hasMoreResults = false;
       }
 
       page++;
     }
 
-    // Fetch relationships for all issues
     console.log('Fetching sub-issues and dependencies from REST API...');
-    await Promise.all(
-      issues.map(async (issue) => {
-        const [subIssues, parentIssue, blockedBy, blocking] = await Promise.all([
-          this.fetchSubIssues(repoInfo.owner, repoInfo.repo, issue.number),
-          this.fetchParentIssue(repoInfo.owner, repoInfo.repo, issue.number),
-          this.fetchBlockedByIssues(repoInfo.owner, repoInfo.repo, issue.number),
-          this.fetchBlockingIssues(repoInfo.owner, repoInfo.repo, issue.number),
-        ]);
-
-        issue.trackedInIssues = subIssues;
-        if (parentIssue) {
-          issue.trackedIssues = [parentIssue];
-        }
-        issue.blockedByIssues = blockedBy;
-        issue.blockingIssues = blocking;
-      })
-    );
+    await this.fetchDependenciesForIssues(repoInfo, issues);
 
     return issues;
   }
