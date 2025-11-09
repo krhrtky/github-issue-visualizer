@@ -203,55 +203,6 @@ describe('Graph', () => {
       analyzer = new GraphAnalyzer();
     });
 
-    it('should calculate depths correctly', () => {
-      const issues = [createTestIssue(1), createTestIssue(2), createTestIssue(3)];
-      const deps: Dependency[] = [
-        { type: 'blocked-by', from: 2, to: 1, source: 'parsed' },
-        { type: 'blocked-by', from: 3, to: 2, source: 'parsed' },
-      ];
-
-      const graph = builder.buildGraph(issues, deps);
-      analyzer.analyze(graph);
-
-      expect(graph.nodes.get(1)!.depth).toBe(0);
-      expect(graph.nodes.get(2)!.depth).toBe(1);
-      expect(graph.nodes.get(3)!.depth).toBe(2);
-    });
-
-    it('should find critical path', () => {
-      const issues = [
-        createTestIssue(1),
-        createTestIssue(2),
-        createTestIssue(3),
-        createTestIssue(4),
-      ];
-      const deps: Dependency[] = [
-        { type: 'blocked-by', from: 2, to: 1, source: 'parsed' },
-        { type: 'blocked-by', from: 3, to: 2, source: 'parsed' },
-        { type: 'blocked-by', from: 4, to: 1, source: 'parsed' },
-      ];
-
-      const graph = builder.buildGraph(issues, deps);
-      analyzer.analyze(graph);
-
-      expect(graph.criticalPath).toEqual([1, 2, 3]);
-      expect(graph.metrics.criticalPathLength).toBe(3);
-    });
-
-    it('should calculate criticality scores', () => {
-      const issues = [createTestIssue(1), createTestIssue(2), createTestIssue(3)];
-      const deps: Dependency[] = [
-        { type: 'blocked-by', from: 2, to: 1, source: 'parsed' },
-        { type: 'blocked-by', from: 3, to: 1, source: 'parsed' },
-      ];
-
-      const graph = builder.buildGraph(issues, deps);
-      analyzer.analyze(graph);
-
-      // Issue 1 blocks 2 issues
-      expect(graph.nodes.get(1)!.criticalityScore).toBe(2);
-    });
-
     it('should detect cycles', () => {
       const issues = [createTestIssue(1), createTestIssue(2)];
       const deps: Dependency[] = [

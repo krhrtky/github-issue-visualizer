@@ -100,11 +100,9 @@ export class IssueDependencyVisualizer {
       graph = this.builder.filterByAssignees(graph, options.filterAssignees);
     }
 
-    // Analyze graph
     console.log('Analyzing graph...');
     try {
       graph = this.analyzer.analyze(graph);
-      console.log(`Critical path length: ${graph.metrics.criticalPathLength}`);
     } catch (error: any) {
       if (error.cycle) {
         throw new Error(`Circular dependency detected: ${error.message}`);
@@ -120,13 +118,12 @@ export class IssueDependencyVisualizer {
    */
   generateVisualization(
     graph: DependencyGraph,
-    format: 'mermaid' | 'interactive' = 'mermaid',
-    highlightCriticalPath: boolean = true
+    format: 'mermaid' | 'interactive' = 'mermaid'
   ): string {
     if (format === 'mermaid') {
-      return this.mermaidGenerator.generate(graph, highlightCriticalPath);
+      return this.mermaidGenerator.generate(graph);
     } else {
-      return this.interactiveGenerator.generate(graph, highlightCriticalPath);
+      return this.interactiveGenerator.generate(graph);
     }
   }
 
@@ -135,13 +132,6 @@ export class IssueDependencyVisualizer {
    */
   generateMetricsSummary(graph: DependencyGraph): string {
     return this.mermaidGenerator.generateMetricsSummary(graph);
-  }
-
-  /**
-   * Generate critical path visualization
-   */
-  generateCriticalPathVisualization(graph: DependencyGraph): string {
-    return this.mermaidGenerator.generateCriticalPathOnly(graph);
   }
 }
 
@@ -157,11 +147,7 @@ export async function visualizeRepository(
 
   const graph = await visualizer.generateGraph(repository, options);
   const format = options?.format || 'mermaid';
-  const visualization = visualizer.generateVisualization(
-    graph,
-    format,
-    options?.highlightCriticalPath ?? true
-  );
+  const visualization = visualizer.generateVisualization(graph, format);
   const metrics = visualizer.generateMetricsSummary(graph);
 
   return { graph, visualization, metrics };

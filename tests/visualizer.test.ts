@@ -63,29 +63,23 @@ describe('Visualizers', () => {
       expect(output).toContain('-->');
     });
 
-    it('should highlight critical path', () => {
-      const graph = createTestGraph();
-      const output = generator.generate(graph, true);
-
-      expect(output).toContain('style');
-      expect(output).toContain('#ff6b6b');
-    });
-
-    it('should generate critical path only', () => {
-      const graph = createTestGraph();
-      const output = generator.generateCriticalPathOnly(graph);
-
-      expect(output).toContain('```mermaid');
-      expect(output).toContain('graph LR');
-    });
-
     it('should generate metrics summary', () => {
       const graph = createTestGraph();
       const output = generator.generateMetricsSummary(graph);
 
       expect(output).toContain('Dependency Graph Metrics');
       expect(output).toContain('Total Issues');
-      expect(output).toContain('Critical Path Length');
+      expect(output).toContain('Total Dependencies');
+    });
+
+    it('should include clickable links to issues', () => {
+      const graph = createTestGraph();
+      const output = generator.generate(graph);
+
+      expect(output).toContain('click N1 "https://github.com/test/repo/issues/1"');
+      expect(output).toContain('click N2 "https://github.com/test/repo/issues/2"');
+      expect(output).toContain('click N3 "https://github.com/test/repo/issues/3"');
+      expect(output).toContain('View issue on GitHub');
     });
   });
 
@@ -120,7 +114,6 @@ describe('Visualizers', () => {
 
       expect(output).toContain('Total Issues');
       expect(output).toContain('Dependencies');
-      expect(output).toContain('Critical Path Length');
     });
   });
 });

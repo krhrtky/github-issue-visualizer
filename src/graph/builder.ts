@@ -80,9 +80,6 @@ export class GraphBuilder {
         subIssues: [],
         blockedBy: [],
         blocking: [],
-        depth: 0,
-        criticalityScore: 0,
-        onCriticalPath: false,
       });
     }
 
@@ -119,12 +116,9 @@ export class GraphBuilder {
     const graph: DependencyGraph = {
       nodes,
       edges: dependencies,
-      criticalPath: [],
       metrics: {
         totalIssues: issues.length,
         totalDependencies: dependencies.length,
-        criticalPathLength: 0,
-        bottlenecks: [],
       },
     };
 

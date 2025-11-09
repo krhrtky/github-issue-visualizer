@@ -9,9 +9,9 @@ export class InteractiveGenerator {
   /**
    * Generate interactive HTML visualization
    */
-  generate(graph: DependencyGraph, highlightCriticalPath: boolean = true): string {
+  generate(graph: DependencyGraph): string {
     const elements = this.buildCytoscapeElements(graph);
-    const style = this.buildCytoscapeStyle(highlightCriticalPath);
+    const style = this.buildCytoscapeStyle();
 
     return this.buildHTML(elements, style, graph);
   }
@@ -22,7 +22,6 @@ export class InteractiveGenerator {
   private buildCytoscapeElements(graph: DependencyGraph): any[] {
     const elements: any[] = [];
 
-    // Add nodes
     for (const [nodeNumber, node] of graph.nodes) {
       elements.push({
         data: {
@@ -32,14 +31,10 @@ export class InteractiveGenerator {
           url: node.url,
           assignees: node.assignees.map((a) => a.login).join(', '),
           labels: node.labels.map((l) => l.name).join(', '),
-          depth: node.depth,
-          criticality: node.criticalityScore,
-          onCriticalPath: node.onCriticalPath,
         },
       });
     }
 
-    // Add edges
     for (const edge of graph.edges) {
       elements.push({
         data: {
@@ -58,19 +53,13 @@ export class InteractiveGenerator {
   /**
    * Build Cytoscape style
    */
-  private buildCytoscapeStyle(highlightCriticalPath: boolean): any[] {
+  private buildCytoscapeStyle(): any[] {
     return [
       {
         selector: 'node',
         style: {
           label: 'data(label)',
-          'background-color': (ele: any) => {
-            if (highlightCriticalPath && ele.data('onCriticalPath')) {
-              return '#ff6b6b';
-            }
-            const criticality = ele.data('criticality');
-            return Formatter.getCriticalityColor(criticality);
-          },
+          'background-color': '#74c0fc',
           color: '#fff',
           'text-valign': 'center',
           'text-halign': 'center',
@@ -272,10 +261,6 @@ export class InteractiveGenerator {
         <span class="label">Dependencies</span>
         <span class="value">${graph.metrics.totalDependencies}</span>
       </div>
-      <div class="metric">
-        <span class="label">Critical Path Length</span>
-        <span class="value">${graph.metrics.criticalPathLength}</span>
-      </div>
     </div>
   </div>
 
@@ -287,16 +272,8 @@ export class InteractiveGenerator {
     <button onclick="exportPNG()">Export as PNG</button>
     <div class="legend">
       <div class="legend-item">
-        <div class="legend-color" style="background: #ff6b6b"></div>
-        <span>Critical Path</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-color" style="background: #ffa94d"></div>
-        <span>High Criticality</span>
-      </div>
-      <div class="legend-item">
         <div class="legend-color" style="background: #74c0fc"></div>
-        <span>Low Criticality</span>
+        <span>Issue Node</span>
       </div>
     </div>
   </div>
@@ -330,9 +307,6 @@ export class InteractiveGenerator {
         <div class="info-item"><span class="label">Issue:</span> #\${data.id}</div>
         <div class="info-item"><span class="label">Assignees:</span> \${data.assignees || 'None'}</div>
         <div class="info-item"><span class="label">Labels:</span> \${data.labels || 'None'}</div>
-        <div class="info-item"><span class="label">Depth:</span> \${data.depth}</div>
-        <div class="info-item"><span class="label">Criticality:</span> \${data.criticality} dependent(s)</div>
-        <div class="info-item"><span class="label">Critical Path:</span> \${data.onCriticalPath ? 'Yes' : 'No'}</div>
         <div class="info-item"><a href="\${data.url}" target="_blank">View on GitHub →</a></div>
       \`;
       document.getElementById('info').classList.add('show');

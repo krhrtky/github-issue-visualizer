@@ -30,32 +30,10 @@ export class Formatter {
   }
 
   /**
-   * Get color for node based on criticality
+   * Get color for node
    */
-  static getNodeColor(node: IssueNode, highlightCriticalPath: boolean = true): string {
-    if (highlightCriticalPath && node.onCriticalPath) {
-      return '#ff6b6b'; // Red for critical path
-    }
-
-    if (node.criticalityScore > 3) {
-      return '#ffa94d'; // Orange for high criticality
-    }
-
-    if (node.criticalityScore > 0) {
-      return '#ffd43b'; // Yellow for medium criticality
-    }
-
-    return '#74c0fc'; // Blue for low criticality
-  }
-
-  /**
-   * Get color hex for criticality level
-   */
-  static getCriticalityColor(score: number): string {
-    if (score > 5) return '#d63031'; // Dark red
-    if (score > 3) return '#e17055'; // Red-orange
-    if (score > 1) return '#fdcb6e'; // Yellow
-    return '#74b9ff'; // Blue
+  static getNodeColor(_node: IssueNode): string {
+    return '#74c0fc';
   }
 
   /**
