@@ -30,7 +30,7 @@ Users must use GitHub's native blocked-by feature via the web UI or API.
 **Example**:
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Implement API] --> N2[#2: Design schema]
     style N1 fill:#74c0fc
     style N2 fill:#74c0fc
@@ -64,7 +64,7 @@ Users must use GitHub's native sub-issues feature via the web UI or API.
 **Example**:
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Create login form] -.-> N2[#2: User Authentication Epic]
     N3[#3: Implement OAuth] -.-> N2
     N4[#4: Add password reset] -.-> N2
@@ -124,7 +124,7 @@ graph LR
 ### Pattern 2: Multiple Dependencies
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Release v2.0] --> N2[#2: Frontend ready]
     N1 --> N3[#3: Backend ready]
     N1 --> N4[#4: Docs updated]
@@ -142,7 +142,7 @@ graph TD
 ### Pattern 3: Hierarchical Epic Structure
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Implement feature A] -.-> N2[#2: Q1 Roadmap]
     N3[#3: Implement feature B] -.-> N2
     N4[#4: Sub-task A1] -.-> N1
@@ -162,7 +162,7 @@ graph TD
 ### Pattern 4: Mixed Relationships (Blocked-by + Sub-issue)
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Sub-task 1] -.-> N2[#2: Epic]
     N3[#3: Sub-task 2] -.-> N2
     N1 --> N4[#4: External dependency]
@@ -218,7 +218,7 @@ graph LR
 ### Pattern 6: Complex Dependency Graph
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Release] --> N2[#2: Feature A]
     N1 --> N3[#3: Feature B]
     N2 --> N4[#4: Design]

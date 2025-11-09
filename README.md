@@ -240,7 +240,7 @@ Generate a token at: https://github.com/settings/tokens
 ### Mermaid Diagram
 
 ```mermaid
-graph TD
+graph LR
     N1[#1: Setup project structure] --> N2[#2: Implement API client]
     N1 --> N3[#3: Create parser]
     N2 --> N4[#4: Build graph analyzer]

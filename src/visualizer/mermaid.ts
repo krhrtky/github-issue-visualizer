@@ -14,7 +14,7 @@ export class MermaidGenerator {
 
     // Start diagram
     lines.push('```mermaid');
-    lines.push('graph TD');
+    lines.push('graph LR');
     lines.push('');
 
     // Add nodes and edges
@@ -81,7 +81,7 @@ export class MermaidGenerator {
     const criticalPath = graph.criticalPath;
 
     if (criticalPath.length === 0) {
-      return '```mermaid\ngraph TD\n    Empty[No critical path found]\n```';
+      return '```mermaid\ngraph LR\n    Empty[No critical path found]\n```';
     }
 
     lines.push('```mermaid');

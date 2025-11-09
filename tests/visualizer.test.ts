@@ -2,6 +2,7 @@
  * Tests for visualizers
  */
 
+import { describe, beforeEach, it, expect } from 'vitest';
 import { MermaidGenerator } from '../src/visualizer/mermaid';
 import { InteractiveGenerator } from '../src/visualizer/interactive';
 import { GraphBuilder } from '../src/graph/builder';
@@ -48,7 +49,7 @@ describe('Visualizers', () => {
       const output = generator.generate(graph);
 
       expect(output).toContain('```mermaid');
-      expect(output).toContain('graph TD');
+      expect(output).toContain('graph LR');
       expect(output).toContain('```');
     });
 
