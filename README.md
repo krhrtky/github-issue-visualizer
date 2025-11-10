@@ -11,7 +11,8 @@ A powerful library to visualize dependencies between GitHub Issues, making it ea
 - 🔄 **Cycle Detection**: Detects circular dependencies in your issue graph
 - 🎨 **Multiple Visualizations**: Generate Mermaid diagrams or interactive HTML visualizations
 - 🎯 **Advanced Filtering**: Filter by labels, assignees, dates, or GitHub Search queries
-- 🚀 **Fast & Efficient**: Process hundreds of issues in seconds
+- 🔁 **Recursive Dependency Fetching**: Automatically fetch all transitive dependencies
+- 🚀 **Fast & Efficient**: Process hundreds of issues in seconds with smart deduplication
 - 💻 **CLI & Library**: Use as a command-line tool or integrate into your workflow
 
 ## Installation
@@ -47,6 +48,11 @@ github-issue-deps visualize owner/repo \
 # Use GitHub Search query for advanced filtering
 github-issue-deps visualize owner/repo \
   --query "is:blocked label:bug"
+
+# Recursively fetch all transitive dependencies
+github-issue-deps visualize owner/repo \
+  --recursive \
+  --label "feature"
 ```
 
 ### Library Usage
@@ -89,6 +95,22 @@ Dependencies are detected through GitHub's Native REST API:
 3. **Dependencies API**: `/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by`
 4. **Blocking API**: `/repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocking`
 
+### Recursive Dependency Fetching
+
+When the `--recursive` flag is enabled, the tool automatically fetches all transitive dependencies:
+
+1. **Initial Fetch**: Fetch issues matching your filters (labels, state, assignee, etc.)
+2. **Dependency Extraction**: Extract all dependency references from fetched issues
+3. **Recursive Fetch**: Fetch any dependency issues not yet retrieved
+4. **Repeat**: Continue fetching until all transitive dependencies are resolved
+5. **Deduplication**: Use Set-based tracking to avoid fetching the same issue twice
+
+**Benefits:**
+- Ensures complete dependency graphs even when dependencies don't match filters
+- Handles circular dependencies without infinite loops
+- Reduces API calls through intelligent deduplication
+- Useful for analyzing epic-level issues with many nested sub-issues
+
 ### Cycle Detection
 
 The analyzer detects circular dependencies using depth-first search:
@@ -122,6 +144,7 @@ github-issue-deps visualize <repository> [options]
 - `--created-until <date>`: Filter issues created until date (ISO 8601 format)
 - `--updated-since <date>`: Filter issues updated since date (ISO 8601 format)
 - `--updated-until <date>`: Filter issues updated until date (ISO 8601 format)
+- `-r, --recursive`: Recursively fetch all transitive dependencies
 
 **Examples:**
 
@@ -148,6 +171,11 @@ github-issue-deps visualize owner/repo \
 github-issue-deps visualize owner/repo \
   --created-since 2025-01-01 \
   --state all
+
+# Recursively fetch all dependencies
+github-issue-deps visualize owner/repo \
+  --recursive \
+  --label "epic"
 ```
 
 ## Library API

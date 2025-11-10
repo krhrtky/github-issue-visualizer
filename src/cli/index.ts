@@ -35,6 +35,7 @@ program
   .option('--created-until <date>', 'Filter issues created until date (ISO 8601 format)')
   .option('--updated-since <date>', 'Filter issues updated since date (ISO 8601 format)')
   .option('--updated-until <date>', 'Filter issues updated until date (ISO 8601 format)')
+  .option('-r, --recursive', 'Recursively fetch all dependency issues')
   .action(async (repository: string, options: any) => {
     try {
       const token = options.token || process.env.GITHUB_TOKEN;
@@ -73,6 +74,7 @@ program
           updatedSince: options.updatedSince,
           updatedUntil: options.updatedUntil,
           query: options.query,
+          recursive: options.recursive,
         },
       });
 

@@ -30,10 +30,20 @@ export class GitHubClient {
     repoInfo: RepositoryInfo,
     filters?: IssueFilterOptions
   ): Promise<Issue[]> {
+    let issues: Issue[];
+
     if (filters?.query) {
-      return this.searchIssues(repoInfo, filters);
+      issues = await this.searchIssues(repoInfo, filters);
+    } else {
+      issues = await this.fetchOpenIssuesREST(repoInfo, filters);
     }
-    return this.fetchOpenIssuesREST(repoInfo, filters);
+
+    // If recursive fetching is enabled, fetch all dependency issues
+    if (filters?.recursive) {
+      issues = await this.fetchIssuesRecursively(repoInfo, issues, filters);
+    }
+
+    return issues;
   }
 
   /**
@@ -420,6 +430,138 @@ export class GitHubClient {
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * Fetch a single issue by its number
+   */
+  async fetchIssueByNumber(
+    repoInfo: RepositoryInfo,
+    issueNumber: number
+  ): Promise<Issue | null> {
+    try {
+      const response = await this.octokit.issues.get({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        issue_number: issueNumber,
+      });
+
+      const issue = response.data;
+
+      // Skip pull requests
+      if (issue.pull_request) {
+        return null;
+      }
+
+      const issueData: Issue = {
+        id: issue.node_id,
+        number: issue.number,
+        title: issue.title,
+        state: issue.state as 'open' | 'closed',
+        url: issue.html_url,
+        body: issue.body || '',
+        assignees: issue.assignees?.map((a) => ({ login: a.login })) || [],
+        labels: issue.labels.map((l) => ({ name: typeof l === 'string' ? l : l.name || '' })),
+        createdAt: issue.created_at,
+        updatedAt: issue.updated_at,
+      };
+
+      // Fetch dependencies for this issue
+      const [subIssues, parentIssue, blockedBy, blocking] = await Promise.all([
+        this.fetchSubIssues(repoInfo.owner, repoInfo.repo, issueNumber),
+        this.fetchParentIssue(repoInfo.owner, repoInfo.repo, issueNumber),
+        this.fetchBlockedByIssues(repoInfo.owner, repoInfo.repo, issueNumber),
+        this.fetchBlockingIssues(repoInfo.owner, repoInfo.repo, issueNumber),
+      ]);
+
+      issueData.trackedInIssues = subIssues;
+      if (parentIssue) {
+        issueData.trackedIssues = [parentIssue];
+      }
+      issueData.blockedByIssues = blockedBy;
+      issueData.blockingIssues = blocking;
+
+      return issueData;
+    } catch (error) {
+      console.warn(`Failed to fetch issue #${issueNumber}:`, (error as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * Recursively fetch all issues referenced in dependencies
+   * This method ensures that all dependent issues are fetched, even if they don't match the initial filters
+   */
+  async fetchIssuesRecursively(
+    repoInfo: RepositoryInfo,
+    initialIssues: Issue[],
+    filters?: IssueFilterOptions
+  ): Promise<Issue[]> {
+    const allIssues = new Map<number, Issue>();
+    const processedNumbers = new Set<number>();
+    const queue: number[] = [];
+
+    // Add initial issues to the map
+    for (const issue of initialIssues) {
+      allIssues.set(issue.number, issue);
+      processedNumbers.add(issue.number);
+    }
+
+    // Collect all dependency issue numbers from initial issues
+    const collectDependencies = (issue: Issue): number[] => {
+      const deps: number[] = [];
+      if (issue.trackedInIssues) deps.push(...issue.trackedInIssues);
+      if (issue.trackedIssues) deps.push(...issue.trackedIssues);
+      if (issue.blockedByIssues) deps.push(...issue.blockedByIssues);
+      if (issue.blockingIssues) deps.push(...issue.blockingIssues);
+      return deps;
+    };
+
+    // Add initial dependencies to queue
+    for (const issue of initialIssues) {
+      const deps = collectDependencies(issue);
+      for (const depNumber of deps) {
+        if (!processedNumbers.has(depNumber)) {
+          queue.push(depNumber);
+          processedNumbers.add(depNumber);
+        }
+      }
+    }
+
+    console.log(`Starting recursive fetch for ${queue.length} dependency issues...`);
+    let fetchedCount = 0;
+
+    // Process queue
+    while (queue.length > 0) {
+      const issueNumber = queue.shift()!;
+
+      // Skip if already fetched
+      if (allIssues.has(issueNumber)) {
+        continue;
+      }
+
+      // Fetch the issue
+      const issue = await this.fetchIssueByNumber(repoInfo, issueNumber);
+
+      if (issue) {
+        allIssues.set(issue.number, issue);
+        fetchedCount++;
+
+        // Add new dependencies to queue
+        const deps = collectDependencies(issue);
+        for (const depNumber of deps) {
+          if (!processedNumbers.has(depNumber)) {
+            queue.push(depNumber);
+            processedNumbers.add(depNumber);
+          }
+        }
+      }
+    }
+
+    console.log(`Recursively fetched ${fetchedCount} additional issues`);
+    console.log(`Total issues: ${allIssues.size}`);
+
+    return Array.from(allIssues.values());
   }
 }
 

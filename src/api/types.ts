@@ -52,6 +52,7 @@ export interface IssueFilterOptions {
   updatedSince?: string;
   updatedUntil?: string;
   query?: string;
+  recursive?: boolean;
 }
 
 export interface SearchOptions {
