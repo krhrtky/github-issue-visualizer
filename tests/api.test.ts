@@ -431,4 +431,149 @@ describe('GitHubClient', () => {
       expect(mockOctokit.issues.get).not.toHaveBeenCalled();
     });
   });
+
+  describe('fetchOpenIssues with query filter and recursive option', () => {
+    it('should fetch issues matching query filter and their transitive dependencies', async () => {
+      // Scenario:
+      // Issue #1 (label:bug) - matches query filter
+      //   ↓ blocked by
+      // Issue #2 (label:feature) - does NOT match query filter
+      //   ↓ blocked by
+      // Issue #3 (no label) - does NOT match query filter
+      //
+      // With --query "label:bug" --recursive:
+      // - Should fetch Issue #1 (matches filter)
+      // - Should fetch Issue #2 (dependency of #1, even though it doesn't match filter)
+      // - Should fetch Issue #3 (dependency of #2, even though it doesn't match filter)
+
+      const mockSearchResults = [
+        {
+          node_id: 'issue-1',
+          number: 1,
+          title: 'Bug Issue',
+          state: 'open',
+          html_url: 'https://github.com/test/repo/issues/1',
+          body: '',
+          assignees: [],
+          labels: [{ name: 'bug' }],
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        },
+      ];
+
+      const mockIssue2Data = {
+        node_id: 'issue-2',
+        number: 2,
+        title: 'Feature Issue',
+        state: 'open',
+        html_url: 'https://github.com/test/repo/issues/2',
+        body: '',
+        assignees: [],
+        labels: [{ name: 'feature' }],
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      };
+
+      const mockIssue3Data = {
+        node_id: 'issue-3',
+        number: 3,
+        title: 'No Label Issue',
+        state: 'open',
+        html_url: 'https://github.com/test/repo/issues/3',
+        body: '',
+        assignees: [],
+        labels: [],
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      };
+
+      // Mock search API to return only Issue #1 (matches "label:bug")
+      mockOctokit.search.issuesAndPullRequests.mockResolvedValue({
+        data: { items: mockSearchResults },
+      });
+
+      // Mock individual issue fetches
+      mockOctokit.issues.get
+        .mockResolvedValueOnce({ data: mockIssue2Data })
+        .mockResolvedValueOnce({ data: mockIssue3Data });
+
+      // Mock dependency API calls
+      mockOctokit.request.mockImplementation((path: string, params: any) => {
+        if (path.includes('issue_number')) {
+          // Issue #1 is blocked by Issue #2
+          if (params.issue_number === 1 && path.includes('blocked_by')) {
+            return Promise.resolve({ data: [{ number: 2 }] });
+          }
+          // Issue #2 is blocked by Issue #3
+          if (params.issue_number === 2 && path.includes('blocked_by')) {
+            return Promise.resolve({ data: [{ number: 3 }] });
+          }
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const issues = await client.fetchOpenIssues(
+        { owner: 'test', repo: 'repo' },
+        { query: 'label:bug', recursive: true }
+      );
+
+      // Should have all 3 issues
+      expect(issues.length).toBe(3);
+      const issueNumbers = issues.map(i => i.number).sort();
+      expect(issueNumbers).toEqual([1, 2, 3]);
+
+      // Verify Issue #1 has bug label
+      const issue1 = issues.find(i => i.number === 1);
+      expect(issue1?.labels).toEqual([{ name: 'bug' }]);
+
+      // Verify Issue #2 has feature label (not bug)
+      const issue2 = issues.find(i => i.number === 2);
+      expect(issue2?.labels).toEqual([{ name: 'feature' }]);
+
+      // Verify Issue #3 has no labels
+      const issue3 = issues.find(i => i.number === 3);
+      expect(issue3?.labels).toEqual([]);
+    });
+
+    it('should only fetch issues matching query filter when recursive is false', async () => {
+      const mockSearchResults = [
+        {
+          node_id: 'issue-1',
+          number: 1,
+          title: 'Bug Issue',
+          state: 'open',
+          html_url: 'https://github.com/test/repo/issues/1',
+          body: '',
+          assignees: [],
+          labels: [{ name: 'bug' }],
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        },
+      ];
+
+      mockOctokit.search.issuesAndPullRequests.mockResolvedValue({
+        data: { items: mockSearchResults },
+      });
+
+      mockOctokit.request.mockImplementation((path: string, params: any) => {
+        if (params.issue_number === 1 && path.includes('blocked_by')) {
+          return Promise.resolve({ data: [{ number: 2 }] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const issues = await client.fetchOpenIssues(
+        { owner: 'test', repo: 'repo' },
+        { query: 'label:bug', recursive: false }
+      );
+
+      // Should only have Issue #1 (matches filter)
+      expect(issues.length).toBe(1);
+      expect(issues[0].number).toBe(1);
+      expect(issues[0].labels).toEqual([{ name: 'bug' }]);
+
+      // Should not fetch Issue #2
+      expect(mockOctokit.issues.get).not.toHaveBeenCalled();
+    });
+  });
 });
