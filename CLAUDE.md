@@ -46,6 +46,9 @@ node dist/cli/index.js visualize owner/repo --token $GITHUB_TOKEN
 # Interactive visualization
 node dist/cli/index.js visualize owner/repo -f interactive -o graph.html
 
+# Recursive dependency fetching (fetch all transitive dependencies)
+node dist/cli/index.js visualize owner/repo --recursive --token $GITHUB_TOKEN
+
 # Analysis only
 node dist/cli/index.js analyze owner/repo --show-critical-path
 ```
@@ -78,11 +81,24 @@ npm test -- -t "pattern name"       # Run tests matching pattern
 - State filter (`--state`): open (default) | closed | all
 - Text search (`--search`): Searches title and body
 - Date filters: `--created-since`, `--updated-until`, etc. (ISO 8601 format)
+- Recursive filter (`--recursive`): Fetch all transitive dependencies (even if they don't match filters)
+
+### Recursive Dependency Fetching
+- **Purpose**: Fetch all issues transitively related through dependencies, even if they don't match initial filters
+- **Algorithm**:
+  1. Fetch initial issues matching filters (labels, state, assignee, etc.)
+  2. Extract all dependency references (blockedBy, blocking, subIssues, parent)
+  3. Fetch dependency issues not yet retrieved
+  4. Repeat steps 2-3 for newly fetched issues until all transitive dependencies are resolved
+- **Deduplication**: Uses Set-based tracking to avoid fetching the same issue multiple times
+- **Circular dependencies**: Handled gracefully without infinite loops
+- **Performance**: Only fetches issues once, reducing API calls and respecting rate limits
 
 ### Error Handling Patterns
 - `CycleError`: Thrown when circular dependencies detected (includes `cycle` property)
 - API validation: Check repository access before fetching issues
 - Dependency validation: Filter out references to non-existent issues
+- Failed issue fetches: Logged as warnings, do not halt the recursive fetching process
 
 ## Environment Setup
 
@@ -106,6 +122,7 @@ GITHUB_TOKEN=ghp_your_token_here  # Required scopes: repo or public_repo
 ### Test File Organization
 ```
 tests/
+├── api.test.ts         # GitHubClient tests (including recursive fetching)
 ├── parser.test.ts      # DependencyParser tests
 ├── graph.test.ts       # GraphBuilder + GraphAnalyzer tests
 └── visualizer.test.ts  # Mermaid + Interactive generator tests
