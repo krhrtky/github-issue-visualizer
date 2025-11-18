@@ -31,16 +31,16 @@ export class GitHubClient {
     filters?: IssueFilterOptions
   ): Promise<Issue[]> {
     let issues: Issue[];
-
     if (filters?.query) {
       issues = await this.searchIssues(repoInfo, filters);
     } else {
       issues = await this.fetchOpenIssuesREST(repoInfo, filters);
     }
 
-    // If recursive fetching is enabled, fetch all dependency issues
     if (filters?.recursive) {
       issues = await this.fetchIssuesRecursively(repoInfo, issues, filters);
+    } else {
+      await this.fetchMissingParentIssues(repoInfo, issues);
     }
 
     return issues;
@@ -156,6 +156,74 @@ export class GitHubClient {
   }
 
   /**
+   * Fetch missing parent issues and add them to the issues list
+   */
+  private async fetchMissingParentIssues(
+    repoInfo: RepositoryInfo,
+    issues: Issue[]
+  ): Promise<void> {
+    const issueNumberSet = new Set(issues.map(i => i.number));
+    const processedParents = new Set<number>();
+
+    while (true) {
+      const parentNumbers = new Set<number>();
+
+      for (const issue of issues) {
+        if (issue.trackedIssues) {
+          issue.trackedIssues.forEach(parentNum => {
+            if (!issueNumberSet.has(parentNum) && !processedParents.has(parentNum)) {
+              parentNumbers.add(parentNum);
+            }
+          });
+        }
+      }
+
+      if (parentNumbers.size === 0) {
+        break;
+      }
+
+      const newParentIssues = await Promise.all(
+        Array.from(parentNumbers).map(async (parentNum) => {
+          try {
+            const response = await this.octokit.issues.get({
+              owner: repoInfo.owner,
+              repo: repoInfo.repo,
+              issue_number: parentNum,
+            });
+
+            const issue: Issue = {
+              id: response.data.node_id,
+              number: response.data.number,
+              title: response.data.title,
+              state: response.data.state as 'open' | 'closed',
+              url: response.data.html_url,
+              body: response.data.body || '',
+              assignees: response.data.assignees?.map((a) => ({ login: a.login })) || [],
+              labels: response.data.labels.map((l) => ({ name: typeof l === 'string' ? l : l.name || '' })),
+              createdAt: response.data.created_at,
+              updatedAt: response.data.updated_at,
+            };
+
+            processedParents.add(parentNum);
+            return issue;
+          } catch (error) {
+            processedParents.add(parentNum);
+            return null;
+          }
+        })
+      );
+
+      const validParentIssues = newParentIssues.filter((issue): issue is Issue => issue !== null);
+
+      if (validParentIssues.length > 0) {
+        await this.fetchDependenciesForIssues(repoInfo, validParentIssues);
+        issues.push(...validParentIssues);
+        validParentIssues.forEach(issue => issueNumberSet.add(issue.number));
+      }
+    }
+  }
+
+  /**
    * Fetch dependencies for a list of issues
    */
   private async fetchDependenciesForIssues(
@@ -164,16 +232,16 @@ export class GitHubClient {
   ): Promise<void> {
     await Promise.all(
       issues.map(async (issue) => {
-        const [subIssues, parentIssue, blockedBy, blocking] = await Promise.all([
+        const [subIssues, parentIssues, blockedBy, blocking] = await Promise.all([
           this.fetchSubIssues(repoInfo.owner, repoInfo.repo, issue.number),
-          this.fetchParentIssue(repoInfo.owner, repoInfo.repo, issue.number),
+          this.fetchParentIssuesRecursive(repoInfo.owner, repoInfo.repo, issue.number),
           this.fetchBlockedByIssues(repoInfo.owner, repoInfo.repo, issue.number),
           this.fetchBlockingIssues(repoInfo.owner, repoInfo.repo, issue.number),
         ]);
 
         issue.trackedInIssues = subIssues;
-        if (parentIssue) {
-          issue.trackedIssues = [parentIssue];
+        if (parentIssues.length > 0) {
+          issue.trackedIssues = parentIssues;
         }
         issue.blockedByIssues = blockedBy;
         issue.blockingIssues = blocking;
@@ -297,6 +365,37 @@ export class GitHubClient {
       // No parent issue
       return undefined;
     }
+  }
+
+  /**
+   * Recursively fetch all parent issues for a given sub-issue
+   */
+  private async fetchParentIssuesRecursive(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    visited: Set<number> = new Set()
+  ): Promise<number[]> {
+    if (visited.has(issueNumber)) {
+      return [];
+    }
+    visited.add(issueNumber);
+
+    const parentNumber = await this.fetchParentIssue(owner, repo, issueNumber);
+    if (!parentNumber) {
+      return [];
+    }
+
+    const parents = [parentNumber];
+    const ancestorParents = await this.fetchParentIssuesRecursive(
+      owner,
+      repo,
+      parentNumber,
+      visited
+    );
+    parents.push(...ancestorParents);
+
+    return parents;
   }
 
   /**
@@ -467,16 +566,16 @@ export class GitHubClient {
       };
 
       // Fetch dependencies for this issue
-      const [subIssues, parentIssue, blockedBy, blocking] = await Promise.all([
+      const [subIssues, parentIssues, blockedBy, blocking] = await Promise.all([
         this.fetchSubIssues(repoInfo.owner, repoInfo.repo, issueNumber),
-        this.fetchParentIssue(repoInfo.owner, repoInfo.repo, issueNumber),
+        this.fetchParentIssuesRecursive(repoInfo.owner, repoInfo.repo, issueNumber),
         this.fetchBlockedByIssues(repoInfo.owner, repoInfo.repo, issueNumber),
         this.fetchBlockingIssues(repoInfo.owner, repoInfo.repo, issueNumber),
       ]);
 
       issueData.trackedInIssues = subIssues;
-      if (parentIssue) {
-        issueData.trackedIssues = [parentIssue];
+      if (parentIssues.length > 0) {
+        issueData.trackedIssues = parentIssues;
       }
       issueData.blockedByIssues = blockedBy;
       issueData.blockingIssues = blocking;
